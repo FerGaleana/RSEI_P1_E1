@@ -93,6 +93,8 @@ enum {
 #define gAppEvtMessageFromMCPS_c       (1 << 3)
 #define gAppEvtPressedRestoreNvmBut_c  (1 << 4)
 #define gIncreaseCounterEvent_c 	   (1 << 5)
+#define gSW3PressedEvt_c			   (1 << 6)
+#define gSW4PressedEvt_c			   (1 << 7)
 
 
 #define gMyTaskPriority_c 3

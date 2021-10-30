@@ -597,6 +597,17 @@ void AppThread(osaTaskParam_t argument)
         case stateListen:
         	/*CHANGE -  Implement Counter transmission instead of UART transmission to coordinator*/
         	/*ADD - Turn on/off leds*/
+        	/* Verify if either the sw3 or sw4 were pressed*/
+        	if(ev & gSW3PressedEvt_c)
+        	{
+        		/* LED should change to green on next timer set*/
+        		counter = 1;
+        	}
+        	else if(ev & gSW4PressedEvt_c)
+        	{
+        		/* LED should change to blue on next timer set*/
+        		counter = 2;
+        	}
 
             /* Transmit to coordinator data received from UART. */
             if (ev & gAppEvtMessageFromMLME_c)
@@ -1232,7 +1243,19 @@ static void App_HandleKeys
     case gKBD_EventLongSW3_c:
     case gKBD_EventLongSW4_c:
     case gKBD_EventSW1_c:
+    	/* It is actually sw4 */
+    	if(stateListen == gState)
+    	{
+    		OSA_EventSet(mAppEvent, gSW4PressedEvt_c);
+    		break;
+    	}
     case gKBD_EventSW2_c:
+    	/* It is actually sw3 */
+    	if(stateListen == gState)
+    	{
+    		OSA_EventSet(mAppEvent, gSW3PressedEvt_c);
+    		break;
+    	}
     case gKBD_EventSW3_c:
     case gKBD_EventSW4_c:
 #if gTsiSupported_d
