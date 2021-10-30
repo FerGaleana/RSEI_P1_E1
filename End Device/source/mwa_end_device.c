@@ -385,6 +385,7 @@ void AppThread(osaTaskParam_t argument)
     uint8_t rc;
     /* Counter that increases when the timer event happens */
     static uint8_t counter;
+    uint8_t flag_first_counter;
     
     while(1)
     {
@@ -571,6 +572,8 @@ void AppThread(osaTaskParam_t argument)
                             TimerCounterID = TMR_AllocateTimer();
                             /* Start timer for counter*/
                             TMR_StartIntervalTimer(TimerCounterID, 3000, myTaskTimerCallback, NULL);
+                            /* Put flag on true for first iteration of counter case*/
+                            flag_first_counter = TRUE;
                             /* Go to the listen state */
                             gState = stateListen;
                             OSA_EventSet(mAppEvent, gAppEvtDummyEvent_c); 
@@ -602,11 +605,19 @@ void AppThread(osaTaskParam_t argument)
         	{
         		/* LED should change to green on next timer set*/
         		counter = 1;
+        		/* Set timer flag so the device sends the value and the color changes */
+        		OSA_EventSet(mAppEvent, gIncreaseCounterEvent_c);
+        		/* Restart timer */
+        		TMR_StartIntervalTimer(TimerCounterID, 3000, myTaskTimerCallback, NULL);
         	}
         	else if(ev & gSW4PressedEvt_c)
         	{
         		/* LED should change to blue on next timer set*/
         		counter = 2;
+        		/* Set timer flag so the device sends the value and the color changes */
+        		OSA_EventSet(mAppEvent, gIncreaseCounterEvent_c);
+        		/* Restart timer */
+        		TMR_StartIntervalTimer(TimerCounterID, 3000, myTaskTimerCallback, NULL);
         	}
 
             /* Transmit to coordinator data received from UART. */
@@ -619,8 +630,9 @@ void AppThread(osaTaskParam_t argument)
                 }
             } 
             /*CHANGE - Event must be the one from timer*/
-            if (ev & gIncreaseCounterEvent_c)
+            if ((ev & gIncreaseCounterEvent_c) || flag_first_counter)
             {
+            	flag_first_counter = FALSE;
             	App_TransmitCounterData(counter);
                 switch(counter){
                 case 0:
