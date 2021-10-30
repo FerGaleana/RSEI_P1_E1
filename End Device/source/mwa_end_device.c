@@ -384,7 +384,7 @@ void AppThread(osaTaskParam_t argument)
     /* Stores the status code returned by some functions. */
     uint8_t rc;
     /* Counter that increases when the timer event happens */
-    static uint8_t counter;
+    uint8_t counter;
     uint8_t flag_first_counter;
     
     while(1)
@@ -572,6 +572,8 @@ void AppThread(osaTaskParam_t argument)
                             TimerCounterID = TMR_AllocateTimer();
                             /* Start timer for counter*/
                             TMR_StartIntervalTimer(TimerCounterID, 3000, myTaskTimerCallback, NULL);
+                            /* Initialize counter value */
+                            counter = 0;
                             /* Put flag on true for first iteration of counter case*/
                             flag_first_counter = TRUE;
                             /* Go to the listen state */
