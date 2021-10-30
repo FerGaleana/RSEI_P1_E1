@@ -608,7 +608,7 @@ void AppThread(osaTaskParam_t argument)
                 }
             } 
             /*CHANGE - Event must be the one from timer*/
-            if (ev & gIncreaseCounterEvent_c)//gAppEvtRxFromUart_c)
+            if (ev & gIncreaseCounterEvent_c)
             {
             	App_TransmitCounterData(counter);
                 switch(counter){
@@ -1129,9 +1129,8 @@ static void App_TransmitCounterData(uint8_t counter)
         /* Data is available in the SerialManager's receive buffer. Now create an
         MCPS-Data Request message containing the data. */
         mpPacket->msgType = gMcpsDataReq_c;
-        mpPacket->msgData.dataReq.pMsdu = (uint8_t*)(&mpPacket->msgData.dataReq.pMsdu) + 
+        mpPacket->msgData.dataReq.pMsdu = (uint8_t*)(&mpPacket->msgData.dataReq.pMsdu) +
                                           sizeof(mpPacket->msgData.dataReq.pMsdu);
-        //Serial_Read(interfaceId, mpPacket->msgData.dataReq.pMsdu, count, &count);
         mpPacket->msgData.dataReq.pMsdu = &data;
         /* Create the header using coordinator information gained during 
         the scan procedure. Also use the short address we were assigned
@@ -1142,7 +1141,7 @@ static void App_TransmitCounterData(uint8_t counter)
         FLib_MemCpy(&mpPacket->msgData.dataReq.srcPanId, &mCoordInfo.coordPanId, 2);
         mpPacket->msgData.dataReq.dstAddrMode = mCoordInfo.coordAddrMode;
         mpPacket->msgData.dataReq.srcAddrMode = mAddrMode;
-        mpPacket->msgData.dataReq.msduLength = sizeof(uint16_t);
+        mpPacket->msgData.dataReq.msduLength = sizeof(data);
         /* Request MAC level acknowledgement of the data packet */
         mpPacket->msgData.dataReq.txOptions = gMacTxOptionsAck_c;
         /* Give the data packet a handle. The handle is
@@ -1277,15 +1276,6 @@ resultType_t MCPS_NWK_SapHandler (mcpsToNwkMessage_t* pMsg, instanceId_t instanc
 /*ADD - Function for timer task*/
 /*ADD - Creation of task function*/
 /*ADD - Set event on code*/
-/* Function to init the task */
-/*
-void Counter_Init(void)
-{
-	mTimerCounterEvent = OSA_EventCreate(TRUE);
-	The instance of the MAC is passed at task creation
-	gTaskTimerHandler_ID = OSA_TaskCreate(OSA_TASK(Counter_Task), NULL);
-}
-*/
 /* This is the function called by the Timer each time it expires */
 static void myTaskTimerCallback(void *param)
 {
