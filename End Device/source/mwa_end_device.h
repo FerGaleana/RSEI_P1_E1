@@ -18,7 +18,14 @@
 * Include
 *************************************************************************************
 ********************************************************************************** */
-
+/* Fwk */
+#include "TimersManager.h"
+#include "FunctionLib.h"
+#include "LED.h"
+/* KSDK */
+#include "fsl_common.h"
+#include "EmbeddedTypes.h"
+#include "fsl_os_abstraction.h"
 /************************************************************************************
 *************************************************************************************
 * Public macros
@@ -85,6 +92,11 @@ enum {
 #define gAppEvtMessageFromMLME_c       (1 << 2)
 #define gAppEvtMessageFromMCPS_c       (1 << 3)
 #define gAppEvtPressedRestoreNvmBut_c  (1 << 4)
+#define gIncreaseCounterEvent_c 	   (1 << 5)
+
+
+#define gMyTaskPriority_c 3
+#define gMyTaskStackSize_c 400
 
 /* Error codes */
 enum {
@@ -102,6 +114,7 @@ enum {
 * Public Prototypes
 *******************************************************************************
 ******************************************************************************/
+
 #ifdef __cplusplus
     extern "C" {
 #endif

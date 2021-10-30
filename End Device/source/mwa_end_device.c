@@ -80,7 +80,7 @@ static uint8_t App_SendAssociateRequest(void);
 static uint8_t App_HandleAssociateConfirm(nwkMessage_t *pMsg);
 static uint8_t App_HandleMlmeInput(nwkMessage_t *pMsg);
 static void    App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn);
-static void    App_TransmitUartData(void);
+static void    App_TransmitCounterData(uint8_t counter);
 static void    AppPollWaitTimeout(void *);
 static void    App_HandleKeys( key_event_t events );
 
@@ -90,6 +90,10 @@ void App_Idle_Task(uint32_t argument);
 resultType_t MLME_NWK_SapHandler (nwkMessage_t* pMsg, instanceId_t instanceId);
 resultType_t MCPS_NWK_SapHandler (mcpsToNwkMessage_t* pMsg, instanceId_t instanceId);
 extern void Mac_SetExtendedAddress(uint8_t *pAddr, instanceId_t instanceId);
+
+void Counter_Task(osaTaskParam_t argument);
+void Counter_Init(void);
+static void myTaskTimerCallback(void *param);
 
 /************************************************************************************
 *************************************************************************************
@@ -138,6 +142,17 @@ static anchor_t mMlmeNwkInputQueue;
 static anchor_t mMcpsNwkInputQueue;
 
 static tmrTimerID_t mTimer_c = gTmrInvalidTimerID_c;
+
+/*For the timer used to improve the counter*/
+osaEventId_t          mTimerCounterEvent;
+osaEventFlags_t		  g_TimerEventFlags;
+/* Global Variable to store our TimerID */
+tmrTimerID_t TimerCounterID = gTmrInvalidTimerID_c;
+
+/* Handler ID for task */
+osaTaskId_t gTaskTimerHandler_ID;
+/* OSA Task Definition*/
+//OSA_TASK_DEFINE(Counter_Task, gMyTaskPriority_c, 1, gMyTaskStackSize_c, FALSE);
 
 static const uint64_t mExtendedAddress  = mMacExtendedAddress_c;
 static instanceId_t   macInstance;
@@ -213,7 +228,6 @@ void main_task(uint32_t param)
 #if gNvmTestActive_d
         NvModuleInit();
 #endif
-        
         /* Bind to MAC layer */
         macInstance = BindToMAC( (instanceId_t)0 );
         Mac_RegisterSapHandlers( MCPS_NWK_SapHandler, MLME_NWK_SapHandler, macInstance );
@@ -369,6 +383,8 @@ void AppThread(osaTaskParam_t argument)
     void *pMsgIn = NULL;
     /* Stores the status code returned by some functions. */
     uint8_t rc;
+    /* Counter that increases when the timer event happens */
+    static uint8_t counter;
     
     while(1)
     {
@@ -551,6 +567,10 @@ void AppThread(osaTaskParam_t argument)
 #endif 
                             /* Startup the timer */
                             TMR_StartLowPowerTimer(mTimer_c, gTmrSingleShotTimer_c ,mPollInterval, AppPollWaitTimeout, NULL );
+                            /* Timer for counter */
+                            TimerCounterID = TMR_AllocateTimer();
+                            /* Start timer for counter*/
+                            TMR_StartIntervalTimer(TimerCounterID, 3000, myTaskTimerCallback, NULL);
                             /* Go to the listen state */
                             gState = stateListen;
                             OSA_EventSet(mAppEvent, gAppEvtDummyEvent_c); 
@@ -575,6 +595,9 @@ void AppThread(osaTaskParam_t argument)
             break; 
 
         case stateListen:
+        	/*CHANGE -  Implement Counter transmission instead of UART transmission to coordinator*/
+        	/*ADD - Turn on/off leds*/
+
             /* Transmit to coordinator data received from UART. */
             if (ev & gAppEvtMessageFromMLME_c)
             {  
@@ -584,12 +607,38 @@ void AppThread(osaTaskParam_t argument)
                     rc = App_HandleMlmeInput(pMsgIn);
                 }
             } 
-
-            if (ev & gAppEvtRxFromUart_c)
-            {      
-                /* get byte from UART */
-                App_TransmitUartData();
+            /*CHANGE - Event must be the one from timer*/
+            if (ev & gIncreaseCounterEvent_c)//gAppEvtRxFromUart_c)
+            {
+            	App_TransmitCounterData(counter);
+                switch(counter){
+                case 0:
+                	LED_TurnOffAllLeds();
+                	/*Turn red LED on*/
+                	Led2On();
+                	counter++;
+                	break;
+                case 1:
+                	LED_TurnOffAllLeds();
+                	/*Turn green LED on*/
+                	Led3On();
+                	counter++;
+                	break;
+                case 2:
+                	LED_TurnOffAllLeds();
+                	/*Turn blue LED on*/
+                	Led4On();
+                	counter++;
+                	break;
+                default:
+                	LED_TurnOnAllLeds();
+                	/* Restart counter */
+                	counter = 0;
+                	break;
+                }
             }
+
+
 #if gNvmTestActive_d  
             if (timeoutCounter >= mDefaultValueOfTimeoutError_c)
             {
@@ -1046,31 +1095,31 @@ static uint8_t App_WaitMsg(nwkMessage_t *pMsg, uint8_t msgType)
 * Data Request message. The message is sent to the MCPS service access point
 * in the MAC.
 ******************************************************************************/
-static void App_TransmitUartData(void)
+static void App_TransmitCounterData(uint8_t counter)
 {   
-    uint16_t count;
-    
+    uint8_t data = counter + 48;
     /* Count bytes receive over the serial interface */
-    Serial_RxBufferByteCount(interfaceId, &count);
-    
+
+    /*Serial_RxBufferByteCount(interfaceId, &count);
+
     if( 0 == count )
     {
         return;
     }
-    
-    /* Limit data transfer size */
+
+    Limit data transfer size
     if( count > mMaxKeysToReceive_c )
     {
         count = mMaxKeysToReceive_c;
     }
-
+	*/
     /* Use multi buffering for increased TX performance. It does not really
     have any effect at low UART baud rates, but serves as an
     example of how the throughput may be improved in a real-world
     application where the data rate is of concern. */
     if( (mcPendingPackets < mDefaultValueOfMaxPendingDataPackets_c) && (mpPacket == NULL) ) 
     {
-        /* If the maximum number of pending data buffes is below maximum limit 
+        /* If the maximum number of pending data buffers is below maximum limit
         and we do not have a data buffer already then allocate one. */
         mpPacket = MSG_Alloc(sizeof(nwkToMcpsMessage_t) + gMaxPHYPacketSize_c);
     }
@@ -1082,7 +1131,8 @@ static void App_TransmitUartData(void)
         mpPacket->msgType = gMcpsDataReq_c;
         mpPacket->msgData.dataReq.pMsdu = (uint8_t*)(&mpPacket->msgData.dataReq.pMsdu) + 
                                           sizeof(mpPacket->msgData.dataReq.pMsdu);
-        Serial_Read(interfaceId, mpPacket->msgData.dataReq.pMsdu, count, &count);
+        //Serial_Read(interfaceId, mpPacket->msgData.dataReq.pMsdu, count, &count);
+        mpPacket->msgData.dataReq.pMsdu = &data;
         /* Create the header using coordinator information gained during 
         the scan procedure. Also use the short address we were assigned
         by the coordinator during association. */
@@ -1092,7 +1142,7 @@ static void App_TransmitUartData(void)
         FLib_MemCpy(&mpPacket->msgData.dataReq.srcPanId, &mCoordInfo.coordPanId, 2);
         mpPacket->msgData.dataReq.dstAddrMode = mCoordInfo.coordAddrMode;
         mpPacket->msgData.dataReq.srcAddrMode = mAddrMode;
-        mpPacket->msgData.dataReq.msduLength = count;
+        mpPacket->msgData.dataReq.msduLength = sizeof(uint16_t);
         /* Request MAC level acknowledgement of the data packet */
         mpPacket->msgData.dataReq.txOptions = gMacTxOptionsAck_c;
         /* Give the data packet a handle. The handle is
@@ -1111,12 +1161,13 @@ static void App_TransmitUartData(void)
     
     /* If the data wasn't send over the air because there are too many pending packets,
     or new data has beed received, try to send it later   */
-    Serial_RxBufferByteCount(interfaceId, &count);
-    
+    //Serial_RxBufferByteCount(interfaceId, &count);
+    /*
     if( count )
     {
         OSA_EventSet(mAppEvent, gAppEvtRxFromUart_c);
     }
+    */
 }
 
 /******************************************************************************
@@ -1222,4 +1273,21 @@ resultType_t MCPS_NWK_SapHandler (mcpsToNwkMessage_t* pMsg, instanceId_t instanc
   MSG_Queue(&mMcpsNwkInputQueue, pMsg);
   OSA_EventSet(mAppEvent, gAppEvtMessageFromMCPS_c);
   return gSuccess_c;
+}
+/*ADD - Function for timer task*/
+/*ADD - Creation of task function*/
+/*ADD - Set event on code*/
+/* Function to init the task */
+/*
+void Counter_Init(void)
+{
+	mTimerCounterEvent = OSA_EventCreate(TRUE);
+	The instance of the MAC is passed at task creation
+	gTaskTimerHandler_ID = OSA_TaskCreate(OSA_TASK(Counter_Task), NULL);
+}
+*/
+/* This is the function called by the Timer each time it expires */
+static void myTaskTimerCallback(void *param)
+{
+	OSA_EventSet(mAppEvent, gIncreaseCounterEvent_c);
 }
