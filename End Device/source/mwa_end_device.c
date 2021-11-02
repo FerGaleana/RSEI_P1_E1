@@ -278,6 +278,7 @@ void App_Idle_Task(uint32_t argument)
         if( PWR_CheckIfDeviceCanGoToSleep() )
         {
             Serial_Print(interfaceId, "\n\rEntering in deep sleep mode...\n\r", gAllowToBlock_d);
+            TMR_StopTimer(TimerCounterID);
             wakeupReason = PWR_EnterLowPower();
             PWR_DisallowDeviceToSleep();
             Led1On();
