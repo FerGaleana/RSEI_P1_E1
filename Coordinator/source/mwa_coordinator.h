@@ -19,7 +19,7 @@
 * Include
 *************************************************************************************
 ********************************************************************************** */
-
+#include <stdint.h>
 /************************************************************************************
 *************************************************************************************
 * Public macros
@@ -35,10 +35,10 @@
 #define mMacExtendedAddress_c    (0x1111111111111111)
 
 /* Set the Coordinator short address */ 
-#define mDefaultValueOfShortAddress_c     0xCAFE
+#define mDefaultValueOfShortAddress_c     0x0000 // Short Address fue modificada para el coordinador
 
 /* Set the Coordinator PanID */ 
-#define mDefaultValueOfPanId_c            0x0101
+#define mDefaultValueOfPanId_c            0x1111 // Se modificó el PAN_ID para el coordinador
 
 /* Maximum number of outstanding packets */
 #define mDefaultValueOfMaxPendingDataPackets_c 2
@@ -58,6 +58,15 @@ enum {
   stateStartCoordinatorWaitConfirm,
   stateListen
 };
+
+// Se crea la estructura para almacenar las Extended Address de los 5 Nodos a conectar
+
+typedef struct{
+	uint16_t shortAddress;
+	uint32_t extendedAddress;
+	uint8_t RxOnWhenIdle;
+	uint8_t deviceType;
+}node_info_t;
 
 /* Events that are passed to the application task. 
    Are defined as byte masks to make possible 

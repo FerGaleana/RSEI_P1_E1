@@ -16,7 +16,6 @@
 *************************************************************************************
 ********************************************************************************** */
 #include "mwa_coordinator.h"
-#include "MyNewTask.h"
 
 /* Drv */
 #include "LED.h"
@@ -78,7 +77,12 @@ extern void Mac_SetExtendedAddress(uint8_t *pAddr, instanceId_t instanceId);
 * Private type definitions
 *************************************************************************************
 ************************************************************************************/
-
+enum { 		PRIMERNODO,
+			SEGUNDONODO,
+			TERCERNODO,
+			CUARTONODO,
+			QUINTONODO
+};
 
 /************************************************************************************
 *************************************************************************************
@@ -123,6 +127,9 @@ osaEventId_t          mAppEvent;
 
 /* The current state of the applications state machine */
 uint8_t gState;
+mlmeAssociateRes_t *g_pAssocRes;
+node_info_t node_info[5] = {};
+static uint8_t g_node = 0;
 
 /************************************************************************************
 *************************************************************************************
@@ -161,7 +168,6 @@ void main_task(uint32_t param)
         Phy_Init();
         RNG_Init(); /* RNG must be initialized after the PHY is Initialized */
         MAC_Init();
-        MyTask_Init();
         
         /* Bind to MAC layer */
         macInstance = BindToMAC( (instanceId_t)0 );
@@ -340,7 +346,6 @@ void AppThread(uint32_t argument)
                       Serial_PrintHex(interfaceId,(uint8_t *)&mShortAddress, 2, gPrtHexNoFormat_c);
                       Serial_Print(interfaceId,".\n\rReady to send and receive data over the UART.\n\r\n\r", gAllowToBlock_d);
                       
-                      MyTaskTimer_Start();
                       gState = stateListen;
                       OSA_EventSet(mAppEvent, gAppEvtDummyEvent_c);
                   }
@@ -361,12 +366,14 @@ void AppThread(uint32_t argument)
                   /* Messages from the MLME must always be freed. */
               }
           }
-          
+          /* Does not transmit data from uart to uart, so it is not necessary*/
+          /*
           if (ev & gAppEvtRxFromUart_c)
           {      
-              /* get byte from UART */
+              get byte from UART
               App_TransmitUartData();
           }
+          */
           break;
       }/* switch(gState) */
       
@@ -516,12 +523,9 @@ static uint8_t App_StartScan(macScanType_t scanType, uint8_t appInstance)
 ******************************************************************************/
 static void App_HandleScanEdConfirm(nwkMessage_t *pMsg)
 {  
-  uint8_t n, minEnergy;
   uint8_t *pEdList;
   uint32_t chMask = mDefaultValueOfChannel_c;
-  uint8_t idx;
 #ifndef gPHY_802_15_4g_d
-  uint8_t Channel;
 #endif
 
   Serial_Print(interfaceId,"Received the MLME-Scan Confirm message from the MAC\n\r", gAllowToBlock_d);
@@ -529,45 +533,15 @@ static void App_HandleScanEdConfirm(nwkMessage_t *pMsg)
   /* Get a pointer to the energy detect results */
   pEdList = pMsg->msgData.scanCnf.resList.pEnergyDetectList;
 
-  /* Set the minimum energy to a large value */
-  minEnergy = 0xFF;
 
 #ifdef gPHY_802_15_4g_d
       /* Select default channel */
       mLogicalChannel = 0;
       
-      /* Search for the channel with least energy */
-//      for(idx=0, n=0; n<mDefaultMaxChannel_c; n++)
-//      {
-//          if( (chMask & (1 << n)) )
-//          {
-//              if( pEdList[idx] < minEnergy )
-//              {
-//                  minEnergy = pEdList[idx];
-//                  mLogicalChannel = n;
-//              }
-//              idx++;
-//          }
-//      }
 #else      
   /* Select default channel */
   mLogicalChannel = 0x0B;
-  
-  /* Search for the channel with least energy */
-//  for(idx=0, n=0; n<16; n++)
-//  {
-//      /* Channel numbering is 11 to 26 both inclusive */
-//      Channel = n + 11;
-//      if( (chMask & (1 << Channel)) )
-//      {
-//          if( pEdList[idx] < minEnergy )
-//          {
-//              minEnergy = pEdList[idx];
-//              mLogicalChannel = Channel;
-//          }
-//          idx++;
-//      }
-//  }
+
 #endif /* gPHY_802_15_4g_d */     
 
   chMask &= ~(1 << mLogicalChannel);
@@ -710,7 +684,7 @@ static uint8_t App_StartCoordinator( uint8_t appInstance )
 static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstance)
 {
   mlmeMessage_t *pMsg;
-  mlmeAssociateRes_t *pAssocRes;
+//  mlmeAssociateRes_t *g_pAssocRes;
  
   Serial_Print(interfaceId,"Sending the MLME-Associate Response message to the MAC...", gAllowToBlock_d);
  
@@ -722,7 +696,7 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
     pMsg->msgType = gMlmeAssociateRes_c;
 
     /* Create the Associate response message data. */
-    pAssocRes = &pMsg->msgData.associateRes;
+    g_pAssocRes = &pMsg->msgData.associateRes;
 
     /* Assign a short address to the device. In this example we simply
        choose 0x0001. Though, all devices and coordinators in a PAN must have
@@ -731,25 +705,69 @@ static uint8_t App_SendAssociateResponse(nwkMessage_t *pMsgIn, uint8_t appInstan
        be assigned to it. */
     if(pMsgIn->msgData.associateInd.capabilityInfo & gCapInfoAllocAddr_c)
     {
+    	static uint8_t node_info_full = FALSE;
+    	/* Assign a unique short address less than 0xfffe if the device requests so. */
+//    	g_pAssocRes->assocShortAddress = 0x0001;
+
+		if(TRUE == node_info_full)
+		{
+			node_info_full = FALSE;
+			g_node = FALSE;
+		}
       /* Assign a unique short address less than 0xfffe if the device requests so. */
-      pAssocRes->assocShortAddress = 0x0001;
+      switch(g_node)
+      {
+		  case PRIMERNODO:
+			  g_pAssocRes->assocShortAddress = 0x0003;
+			  g_node++;
+		  break;
+
+		  case SEGUNDONODO:
+				g_pAssocRes->assocShortAddress = 0x0013;
+				g_node++;
+		  break;
+
+		  case TERCERNODO:
+				g_pAssocRes->assocShortAddress = 0x0023;
+				g_node++;
+		  break;
+
+		  case CUARTONODO:
+				g_pAssocRes->assocShortAddress = 0x0033;
+				g_node++;
+		  break;
+
+		  case QUINTONODO:
+				g_pAssocRes->assocShortAddress = 0x0043;
+				g_node++;
+				node_info_full = TRUE;
+		  break;
+
+		  default:
+			  g_pAssocRes->assocShortAddress = 0x0003;
+		  break;
+		} /* end of switch */
+
+		// Se guarda en la estructura para el primer nodo, la short Address que se le asigne.
+		// Por default lo dejamos 0x0003.
+		node_info[g_node-1].shortAddress = g_pAssocRes->assocShortAddress;
     }
     else
     {
       /* A short address of 0xfffe means that the device is granted access to
          the PAN (Associate successful) but that long addressing is used.*/
-      pAssocRes->assocShortAddress = 0xFFFE;
+      g_pAssocRes->assocShortAddress = 0xFFFE;
     }
     /* Get the 64 bit address of the device requesting association. */
-    FLib_MemCpy(&pAssocRes->deviceAddress, &pMsgIn->msgData.associateInd.deviceAddress, 8);
+    FLib_MemCpy(&g_pAssocRes->deviceAddress, &pMsgIn->msgData.associateInd.deviceAddress, 8);
     /* Association granted. May also be gPanAtCapacity_c or gPanAccessDenied_c. */
-    pAssocRes->status = gSuccess_c;
+    g_pAssocRes->status = gSuccess_c;
     /* Do not use security */
-    pAssocRes->securityLevel = gMacSecurityNone_c;
+    g_pAssocRes->securityLevel = gMacSecurityNone_c;
 
     /* Save device info. */
-    FLib_MemCpy(&mDeviceShortAddress, &pAssocRes->assocShortAddress, 2);
-    FLib_MemCpy(&mDeviceLongAddress,  &pAssocRes->deviceAddress,     8);
+    FLib_MemCpy(&mDeviceShortAddress, &g_pAssocRes->assocShortAddress, 2);
+    FLib_MemCpy(&mDeviceLongAddress,  &g_pAssocRes->deviceAddress,     8);
     
     /* Send the Associate Response to the MLME. */
     if( gSuccess_c == NWK_MLME_SapHandler( pMsg, macInstance ) )
@@ -796,7 +814,6 @@ static uint8_t App_HandleMlmeInput(nwkMessage_t *pMsg, uint8_t appInstance)
     /* Sent by the MLME after the Association Response has been transmitted. */
     Serial_Print(interfaceId,"Received an MLME-Comm-Status Indication from the MAC\n\r",
     		gAllowToBlock_d);
-    MyTaskTimer_Stop();
     break;
     
   default:
@@ -812,6 +829,7 @@ static uint8_t App_HandleMlmeInput(nwkMessage_t *pMsg, uint8_t appInstance)
 ******************************************************************************/
 static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
 {
+	uint8_t data;
   switch(pMsgIn->msgType)
   {
     /* The MCPS-Data confirm is sent by the MAC to the network
@@ -825,7 +843,62 @@ static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
     /* The MCPS-Data indication is sent by the MAC to the network
        or application layer when data has been received. We simply
        copy the received data to the UART. */
+	data = *pMsgIn->msgData.dataInd.pMsdu - 48;
+	switch(data){
+	case 0:
+		LED_TurnOffAllLeds();
+		/* Turn red LED on*/
+		Led2On();
+		break;
+	case 1:
+		LED_TurnOffAllLeds();
+		/* Turn green LED on*/
+		Led3On();
+		break;
+	case 2:
+		LED_TurnOffAllLeds();
+		/* Turn blue LED on*/
+		Led4On();
+		break;
+	default:
+		LED_TurnOnAllLeds();
+		break;
+	}
+	// &pMsgIn->msgData.associateInd.deviceAddress
+	Serial_Print( interfaceId,"From device address: 0x", gAllowToBlock_d );
+
+    switch(g_node)
+    {
+    // Se le suma uno porque cuando se asocia el primer nodo ya incrementa el g_node en uno
+    // y cuando llega a este switch, está mandando a la terminal el print del segundo nodo.
+		  case PRIMERNODO+1:
+			  Serial_Print(interfaceId,"0003. ", gAllowToBlock_d);
+		  break;
+
+		  case SEGUNDONODO+1:
+		  	  Serial_Print(interfaceId,"0013. ", gAllowToBlock_d);
+		  break;
+
+		  case TERCERNODO+1:
+		  	  Serial_Print(interfaceId,"0023. ", gAllowToBlock_d);
+		  break;
+
+		  case CUARTONODO+1:
+		  	  Serial_Print(interfaceId,"0033. ", gAllowToBlock_d);
+		  break;
+
+		  case QUINTONODO+1:
+		  	  Serial_Print(interfaceId,"0043. ", gAllowToBlock_d);
+		  break;
+
+		  default:
+
+		  break;
+    } /* end of switch */
+
+	Serial_Print( interfaceId,"Counter: ", gAllowToBlock_d );
     Serial_SyncWrite( interfaceId,pMsgIn->msgData.dataInd.pMsdu, pMsgIn->msgData.dataInd.msduLength );
+    Serial_Print( interfaceId,"\r\n", gAllowToBlock_d );
     break;
     
   default:
