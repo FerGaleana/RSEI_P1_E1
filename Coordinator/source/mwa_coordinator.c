@@ -865,40 +865,46 @@ static void App_HandleMcpsInput(mcpsToNwkMessage_t *pMsgIn, uint8_t appInstance)
 		break;
 	}
 	// &pMsgIn->msgData.associateInd.deviceAddress
-	Serial_Print( interfaceId,"From device address: 0x", gAllowToBlock_d );
+//	Serial_Print( interfaceId,"From device address: 0x", gAllowToBlock_d );
+//
+//    switch(g_node)
+//    {
+//    // Se le suma uno porque cuando se asocia el primer nodo ya incrementa el g_node en uno
+//    // y cuando llega a este switch, está mandando a la terminal el print del segundo nodo.
+//		  case PRIMERNODO+1:
+//			  Serial_Print(interfaceId,"0003. ", gAllowToBlock_d);
+//		  break;
+//
+//		  case SEGUNDONODO+1:
+//		  	  Serial_Print(interfaceId,"0013. ", gAllowToBlock_d);
+//		  break;
+//
+//		  case TERCERNODO+1:
+//		  	  Serial_Print(interfaceId,"0023. ", gAllowToBlock_d);
+//		  break;
+//
+//		  case CUARTONODO+1:
+//		  	  Serial_Print(interfaceId,"0033. ", gAllowToBlock_d);
+//		  break;
+//
+//		  case QUINTONODO+1:
+//		  	  Serial_Print(interfaceId,"0043. ", gAllowToBlock_d);
+//		  break;
+//
+//		  default:
+//
+//		  break;
+//    } /* end of switch */
 
-    switch(g_node)
-    {
-    // Se le suma uno porque cuando se asocia el primer nodo ya incrementa el g_node en uno
-    // y cuando llega a este switch, está mandando a la terminal el print del segundo nodo.
-		  case PRIMERNODO+1:
-			  Serial_Print(interfaceId,"0003. ", gAllowToBlock_d);
-		  break;
-
-		  case SEGUNDONODO+1:
-		  	  Serial_Print(interfaceId,"0013. ", gAllowToBlock_d);
-		  break;
-
-		  case TERCERNODO+1:
-		  	  Serial_Print(interfaceId,"0023. ", gAllowToBlock_d);
-		  break;
-
-		  case CUARTONODO+1:
-		  	  Serial_Print(interfaceId,"0033. ", gAllowToBlock_d);
-		  break;
-
-		  case QUINTONODO+1:
-		  	  Serial_Print(interfaceId,"0043. ", gAllowToBlock_d);
-		  break;
-
-		  default:
-
-		  break;
-    } /* end of switch */
-
-	Serial_Print( interfaceId,"Counter: ", gAllowToBlock_d );
-    Serial_SyncWrite( interfaceId,pMsgIn->msgData.dataInd.pMsdu, pMsgIn->msgData.dataInd.msduLength );
-    Serial_Print( interfaceId,"\r\n", gAllowToBlock_d );
+    Serial_Print( interfaceId,"\r\nFrom device address: 0x", gAllowToBlock_d );
+	Serial_PrintHex(interfaceId,(uint8_t *)&pMsgIn->msgData.dataInd.srcAddr, 2, gPrtHexNoFormat_c);
+	Serial_Print( interfaceId,"\r\nLQI: 0x", gAllowToBlock_d );
+	Serial_PrintHex(interfaceId,(uint8_t *)&pMsgIn->msgData.dataInd.mpduLinkQuality, 1, gPrtHexNoFormat_c);
+	Serial_Print( interfaceId,"\r\nPayload: 0x", gAllowToBlock_d );
+	Serial_PrintHex(interfaceId,(uint8_t *)&pMsgIn->msgData.dataInd.msduLength, 1, gPrtHexNoFormat_c);
+	Serial_Print( interfaceId,"\r\nCounter: ", gAllowToBlock_d );
+	Serial_SyncWrite( interfaceId,pMsgIn->msgData.dataInd.pMsdu, pMsgIn->msgData.dataInd.msduLength );
+	Serial_Print( interfaceId,"\r\n", gAllowToBlock_d );
     break;
     
   default:
