@@ -18,6 +18,9 @@ Include Files
 #include "EmbeddedTypes.h"
 #include <string.h>
 
+/* Timer include */
+#include "Timer.h"
+
 /* FSL Framework */
 #include "shell.h"
 #include "Keyboard.h"
@@ -324,6 +327,8 @@ void Stack_to_APP_Handler
             break;
 
         case gThrEv_NwkJoinCnf_Success_c:
+        	/* Initialize timer */
+        	MyTaskTimer_Start(1000);
         case gThrEv_NwkJoinCnf_Failed_c:
             APP_JoinEventsHandler(pEventParams->code);
             break;
@@ -1505,57 +1510,47 @@ static void APP_AutoStartCb
 ***************************************************************************************************/
 static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
 {
-	static uint8_t pMySessionPayload[3]={0x31,0x32,0x33};
-	  static uint32_t pMyPayloadSize=3;
-	  coapSession_t *pMySession = NULL;
-	  pMySession = COAP_OpenSession(mAppCoapInstId);
-	  COAP_AddOptionToList(pMySession,COAP_URI_PATH_OPTION, APP_RESOURCE2_URI_PATH,SizeOfString(APP_RESOURCE2_URI_PATH));
-
-	    if (gCoapConfirmable_c == pSession->msgType)
-	  {
-	    if (gCoapGET_c == pSession->code)
-	    {
-	      shell_write("'CON' packet received 'GET' with payload: ");
-	    }
-	    if (gCoapPOST_c == pSession->code)
-	    {
-	      shell_write("'CON' packet received 'POST' with payload: ");
-	    }
-	    if (gCoapPUT_c == pSession->code)
-	    {
-	      shell_write("'CON' packet received 'PUT' with payload: ");
-	    }
+	static uint8_t pMySessionPayload[3] = {0x31,0x32,0x33};
+	static uint32_t pMyPayloadSize=3;
+	coapSession_t *pMySession = NULL;
+	uint8_t data_counter;
+	char addrStr[INET6_ADDRSTRLEN];
+	pMySession = COAP_OpenSession(mAppCoapInstId);
+	COAP_AddOptionToList(pMySession,COAP_URI_PATH_OPTION, APP_RESOURCE2_URI_PATH,SizeOfString(APP_RESOURCE2_URI_PATH));
+	FLib_MemCpy(&gCoapDestAddress,&pMySession->remoteAddrStorage,sizeof(ipAddr_t));
+	/* Get counter value */
+	data_counter = GetCounter();
+	/*Change the address to string */
+	ntop(AF_INET6, (ipAddr_t*)&pSession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
+	/* If it is a CON request */
+	if (gCoapConfirmable_c == pSession->msgType)
+	{
+		/* Print the requester address */
+		shell_printf("\tCON instruction received from: %s\n\r", addrStr);
+		/* Send the CoAP Ack */
 	    if (gCoapFailure_c!=sessionStatus)
 	    {
 	      COAP_Send(pSession, gCoapMsgTypeAckSuccessChanged_c, pMySessionPayload, pMyPayloadSize);
 	    }
-	  }
-
-	  else if(gCoapNonConfirmable_c == pSession->msgType)
-	  {
-	    if (gCoapGET_c == pSession->code)
-	    {
-	      shell_write("'NON' packet received 'GET' with payload: ");
-	    }
-	    if (gCoapPOST_c == pSession->code)
-	    {
-	      shell_write("'NON' packet received 'POST' with payload: ");
-	    }
-	    if (gCoapPUT_c == pSession->code)
-	    {
-	      shell_write("'NON' packet received 'PUT' with payload: ");
-	    }
-	  }
-	  shell_writeN((char*)pData, dataLen);
-	  shell_write("\r\n");
-	  pMySession -> msgType=gCoapNonConfirmable_c;
-	  pMySession -> code= gCoapPOST_c;
-	  pMySession -> pCallback =NULL;
-	  FLib_MemCpy(&pMySession->remoteAddrStorage,&gCoapDestAddress,sizeof(ipAddr_t));
-	  COAP_Send(pMySession, gCoapMsgTypeNonPost_c, pMySessionPayload, pMyPayloadSize);
-	  shell_write("'NON' packet sent 'POST' with payload: ");
-	  shell_writeN((char*) pMySessionPayload, pMyPayloadSize);
-	  shell_write("\r\n");
+	}
+	/* If it is a NON request */
+	else if(gCoapNonConfirmable_c == pSession->msgType)
+	{
+		/* Print the requester address */
+		shell_printf("\tNON instruction received from: %s\n\r", addrStr);
+	}
+	shell_writeN((char*)&data_counter, dataLen);
+	shell_write("\r\n");
+	/*
+	pMySession -> msgType = gCoapNonConfirmable_c;
+	pMySession -> code = gCoapPOST_c;
+	pMySession -> pCallback = NULL;
+	FLib_MemCpy(&pMySession->remoteAddrStorage,&gCoapDestAddress,sizeof(ipAddr_t));
+	COAP_Send(pMySession, gCoapMsgTypeNonPost_c, pMySessionPayload, pMyPayloadSize);
+	shell_write("'NON' packet sent 'POST' with payload: ");
+	shell_writeN((char*) pMySessionPayload, pMyPayloadSize);
+	shell_write("\r\n");
+	*/
 }
 /*!*************************************************************************************************
 \private

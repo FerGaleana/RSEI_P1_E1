@@ -16,6 +16,8 @@
 #include "EmbeddedTypes.h"
 #include "fsl_os_abstraction.h"
 
+
+#define ASCII_NUMBERS_OFFSET	48
 /* Define the available Task's Events */
 #define gEvent1StartTimer_c (1 << 0)
 #define gEvent2CallbackTimer_c (1 << 1)
@@ -28,7 +30,6 @@ void My_Task(osaTaskParam_t argument);
 void MyTaskTimer_Start(tmrTimeInMilliseconds_t time);
 void MyTaskTimer_Stop(void);
 void MyTask_Init(void);
-static void myTaskTimerCallback(void *param);
-uint32_t GetCounter(void);
+uint8_t GetCounter(void);
 
 #endif /* TIMER_H_ */

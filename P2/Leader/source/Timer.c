@@ -7,6 +7,8 @@
 
 #include "Timer.h"
 
+#define MAX_COUNTER_VALUE		9
+
 osaEventId_t          mMyEvents;
 /* Global Variable to store our TimerID */
 tmrTimerID_t myTimerID = gTmrInvalidTimerID_c;
@@ -17,10 +19,14 @@ osaTaskId_t gTimerHandler_ID;
 /* OSA Task Definition*/
 OSA_TASK_DEFINE(My_Task, gMyTaskPriority_c, 1, gMyTaskStackSize_c, FALSE);
 
-/*	Total time for the timer in ms */
+/* Total time for the timer in ms */
 tmrTimeInMilliseconds_t g_time;
 
-uint32_t g_counter = 0;
+uint32_t g_counter = 1;
+
+/* Callback declaration */
+static void myTaskTimerCallback(void *param);
+
 /* Main custom task */
 void My_Task(osaTaskParam_t argument)
 {
@@ -40,7 +46,14 @@ void My_Task(osaTaskParam_t argument)
 		  TMR_StartIntervalTimer(myTimerID, g_time, myTaskTimerCallback,NULL);
 		  break;
 	  case gEvent2CallbackTimer_c: /* Event called from myTaskTimerCallback */
-		  g_counter++;
+		  if(MAX_COUNTER_VALUE > g_counter)
+		  {
+			  g_counter++;
+		  }
+		  else
+		  {
+			  g_counter = 1;
+		  }
 		  break;
 	  case gEvent3StopTimer_c: 	/* Event to stop the timer */
 		  TMR_StopTimer(myTimerID);
@@ -72,7 +85,7 @@ void MyTaskTimer_Start(tmrTimeInMilliseconds_t time)
 	g_time = time;
 	OSA_EventSet(mMyEvents, gEvent1StartTimer_c);
 }
-uint32_t GetCounter(void)
+uint8_t GetCounter(void)
 {
 	return(g_counter);
 }
