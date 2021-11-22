@@ -1534,7 +1534,7 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 	if (gCoapConfirmable_c == pSession->msgType)
 	{
 		/* Print the requester address */
-		shell_printf("\tCON instruction received from: %s\n\r", addrStr);
+		shell_printf("\tTIMER - CON instruction received from: %s\n\r", addrStr);
 		/* Send the CoAP Ack */
 	    if (gCoapFailure_c!=sessionStatus)
 	    {
@@ -1545,10 +1545,8 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 	else if(gCoapNonConfirmable_c == pSession->msgType)
 	{
 		/* Print the requester address */
-		shell_printf("\tNON instruction received from: %s\n\r", addrStr);
+		shell_printf("\tTIMER - NON instruction received from: %s\n\r", addrStr);
 	}
-	shell_writeN((char*)pData,dataLen);
-	shell_write("\r\n");
 	if(gCoapGET_c == sessionCode)
 	{
 		/* Return the counter */
@@ -1557,18 +1555,7 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 		pMySession -> msgType = gCoapNonConfirmable_c;
 		pMySession -> code = gCoapPOST_c;
 		FLib_MemCpy(&pMySession->remoteAddrStorage.ss_addr,&gCoapDestAddress,sizeof(ipAddr_t));
-		ntop(AF_INET6, (ipAddr_t*)&pMySession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
 		COAP_Send(pMySession, gCoapMsgTypeUseSessionValues_c, &data_counter, sizeof(data_counter));
-		if(gCoapNonConfirmable_c == pMySession->msgType)
-		{
-			shell_printf("***'NON'");
-		}
-		else
-		{
-			shell_printf("***'CON'");
-		}
-		shell_printf(" packet sent 'POST' with counter value: %u to  %s\n\r",data_counter, addrStr);
-		shell_write("\r\n");
 	}
 }
 /*!*************************************************************************************************
@@ -1597,7 +1584,7 @@ static void APP_CoapAccelCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 	if (gCoapConfirmable_c == pSession->msgType)
 	{
 		/* Print the requester address */
-		shell_printf("\tCON instruction received from: %s\n\r", addrStr);
+		shell_printf("\tACCEL - CON instruction received from: %s\n\r", addrStr);
 		/* Send the CoAP Ack */
 	    if (gCoapFailure_c!=sessionStatus)
 	    {
@@ -1608,7 +1595,7 @@ static void APP_CoapAccelCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 	else if(gCoapNonConfirmable_c == pSession->msgType)
 	{
 		/* Print the requester address */
-		shell_printf("\tNON instruction received from: %s\n\r", addrStr);
+		shell_printf("\tACCEL - NON instruction received from: %s\n\r", addrStr);
 	}
 
 	if(gCoapGET_c == sessionCode)
@@ -1619,22 +1606,11 @@ static void APP_CoapAccelCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 		}
 		/* Return the counter */
 		pMySession -> pCallback = NULL;
-		//pMySession -> pUriPath = (coapUriPath_t *)&gAPP_TIMER_URI_PATH;
+		pMySession -> pUriPath = (coapUriPath_t *)&gAPP_ACCEL_URI_PATH;
 		pMySession -> msgType = gCoapNonConfirmable_c;
 		pMySession -> code = gCoapPOST_c;
 		FLib_MemCpy(&pMySession->remoteAddrStorage.ss_addr,&gCoapDestAddress,sizeof(ipAddr_t));
-		ntop(AF_INET6, (ipAddr_t*)&pMySession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
 		COAP_Send(pMySession, gCoapMsgTypeUseSessionValues_c, &pDataRead, sizeof(pDataRead));
-		if(gCoapNonConfirmable_c == pMySession->msgType)
-		{
-			shell_printf("***'NON'");
-		}
-		else
-		{
-			shell_printf("***'CON'");
-		}
-		shell_printf(" packet sent 'POST' with x = %d, y = %d, z = %d to  %s\n\r",pDataRead.xData, pDataRead.yData,pDataRead.zData, addrStr);
-		shell_write("\r\n");
 	}
 }
 /*==================================================================================================
