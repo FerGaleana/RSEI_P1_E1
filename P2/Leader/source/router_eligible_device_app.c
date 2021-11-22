@@ -215,7 +215,7 @@ void APP_Init
     /* Initialize event monitoring */
     APP_InitEventMonitor(mThrInstanceId);
 #endif
-
+	MyTask_Init();
     if(gThrStatus_Success_c == THR_StartInstance(mThrInstanceId, pStackCfg[0]))
     {
         /* Initialize CoAP demo */
@@ -900,9 +900,11 @@ static void APP_ReportTemp
 
         if(NULL != pSession)
         {
-            coapMsgTypesAndCodes_t coapMessageType = gCoapMsgTypeNonPost_c;
+            coapMsgTypesAndCodes_t coapMessageType = gCoapMsgTypeConPost_c;
 
             pSession->pCallback = NULL;
+            pSession->code = gCoapPOST_c;
+            pSession->msgType = gCoapConfirmable_c;
             FLib_MemCpy(&pSession->remoteAddrStorage.ss_addr, &gCoapDestAddress, sizeof(ipAddr_t));
             ackPloadSize = strlen((char *)pTempString);
             pSession->pUriPath = (coapUriPath_t *)&gAPP_TEMP_URI_PATH;
@@ -1510,14 +1512,15 @@ static void APP_AutoStartCb
 ***************************************************************************************************/
 static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
 {
+
 	static uint8_t pMySessionPayload[3] = {0x31,0x32,0x33};
 	static uint32_t pMyPayloadSize=3;
 	coapSession_t *pMySession = NULL;
 	uint8_t data_counter;
 	char addrStr[INET6_ADDRSTRLEN];
 	pMySession = COAP_OpenSession(mAppCoapInstId);
-	COAP_AddOptionToList(pMySession,COAP_URI_PATH_OPTION, APP_RESOURCE2_URI_PATH,SizeOfString(APP_RESOURCE2_URI_PATH));
-	FLib_MemCpy(&gCoapDestAddress,&pMySession->remoteAddrStorage,sizeof(ipAddr_t));
+	//COAP_AddOptionToList(pMySession,COAP_URI_PATH_OPTION,(uint8_t*)APP_TIMER_URI_PATH,SizeOfString(APP_TIMER_URI_PATH));
+	FLib_MemCpy(&gCoapDestAddress,&pSession->remoteAddrStorage.ss_addr,sizeof(ipAddr_t));
 	/* Get counter value */
 	data_counter = GetCounter();
 	/*Change the address to string */
@@ -1539,18 +1542,29 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 		/* Print the requester address */
 		shell_printf("\tNON instruction received from: %s\n\r", addrStr);
 	}
-	shell_writeN((char*)&data_counter, dataLen);
+	shell_writeN((char*)pData,dataLen);
 	shell_write("\r\n");
-	/*
-	pMySession -> msgType = gCoapNonConfirmable_c;
-	pMySession -> code = gCoapPOST_c;
-	pMySession -> pCallback = NULL;
-	FLib_MemCpy(&pMySession->remoteAddrStorage,&gCoapDestAddress,sizeof(ipAddr_t));
-	COAP_Send(pMySession, gCoapMsgTypeNonPost_c, pMySessionPayload, pMyPayloadSize);
-	shell_write("'NON' packet sent 'POST' with payload: ");
-	shell_writeN((char*) pMySessionPayload, pMyPayloadSize);
-	shell_write("\r\n");
-	*/
+	if(gCoapGET_c == pSession->code)
+	{
+		/* Return the counter */
+		pMySession -> pCallback = NULL;
+		pMySession -> pUriPath = (coapUriPath_t *)&gAPP_TIMER_URI_PATH;
+		pMySession -> msgType = gCoapNonConfirmable_c;
+		pMySession -> code = gCoapPOST_c;
+		FLib_MemCpy(&pMySession->remoteAddrStorage.ss_addr,&gCoapDestAddress,sizeof(ipAddr_t));
+		ntop(AF_INET6, (ipAddr_t*)&pMySession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
+		COAP_Send(pMySession, gCoapMsgTypeUseSessionValues_c, &data_counter, sizeof(data_counter));
+		if(gCoapNonConfirmable_c == pMySession->msgType)
+		{
+			shell_printf("***'NON'");
+		}
+		else
+		{
+			shell_printf("***'CON'");
+		}
+		shell_printf(" packet sent 'POST' with counter value: %u to  %s\n\r",data_counter, addrStr);
+		shell_write("\r\n");
+	}
 }
 /*!*************************************************************************************************
 \private

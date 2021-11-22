@@ -2,12 +2,12 @@
  * Timer.c
  *
  *  Created on: 17 nov. 2021
- *      Author: ferna
+ *      Author: Fernanda Galeana
  */
 
 #include "Timer.h"
 
-#define MAX_COUNTER_VALUE		9
+#define MAX_COUNTER_VALUE		200
 
 osaEventId_t          mMyEvents;
 /* Global Variable to store our TimerID */
@@ -22,7 +22,7 @@ OSA_TASK_DEFINE(My_Task, gMyTaskPriority_c, 1, gMyTaskStackSize_c, FALSE);
 /* Total time for the timer in ms */
 tmrTimeInMilliseconds_t g_time;
 
-uint32_t g_counter = 1;
+uint8_t g_counter = 1;
 
 /* Callback declaration */
 static void myTaskTimerCallback(void *param);

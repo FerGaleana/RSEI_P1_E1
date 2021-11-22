@@ -2,7 +2,7 @@
  * Timer.h
  *
  *  Created on: 17 nov. 2021
- *      Author: ferna
+ *      Author: Fernanda Galeana
  */
 
 #ifndef TIMER_H_
