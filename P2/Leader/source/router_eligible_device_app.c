@@ -17,7 +17,8 @@ Include Files
 /* General Includes */
 #include "EmbeddedTypes.h"
 #include <string.h>
-
+/* Accelerometer */
+#include "Accelerometer.h"
 /* Timer include */
 #include "Timer.h"
 
@@ -84,7 +85,7 @@ Private macros
 #define APP_SINK_URI_PATH                       "/sink"
 
 #define APP_TIMER_URI_PATH						"/team1"
-#define APP_RESOURCE2_URI_PATH					"/resource2"
+#define APP_ACCEL_URI_PATH						"/accel"
 #if LARGE_NETWORK
 #define APP_RESET_TO_FACTORY_URI_PATH           "/reset"
 #endif
@@ -131,7 +132,7 @@ static void APP_CoapSinkCb(coapSessionStatus_t sessionStatus, uint8_t *pData, co
 static void App_RestoreLeaderLed(uint8_t *param);
 
 static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
-static void APP_CoapResource2Cb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
+static void APP_CoapAccelCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
 
 #if LARGE_NETWORK
 static void APP_CoapResetToFactoryDefaultsCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
@@ -150,7 +151,7 @@ const coapUriPath_t gAPP_TEMP_URI_PATH = {SizeOfString(APP_TEMP_URI_PATH), (uint
 const coapUriPath_t gAPP_SINK_URI_PATH = {SizeOfString(APP_SINK_URI_PATH), (uint8_t *)APP_SINK_URI_PATH};
 
 const coapUriPath_t gAPP_TIMER_URI_PATH = {SizeOfString(APP_TIMER_URI_PATH), (uint8_t *)APP_TIMER_URI_PATH};
-const coapUriPath_t gAPP_RESOURCE2_URI_PATH = {SizeOfString(APP_RESOURCE2_URI_PATH), (uint8_t *)APP_RESOURCE2_URI_PATH};
+const coapUriPath_t gAPP_ACCEL_URI_PATH = {SizeOfString(APP_ACCEL_URI_PATH), (uint8_t *)APP_ACCEL_URI_PATH};
 #if LARGE_NETWORK
 const coapUriPath_t gAPP_RESET_URI_PATH = {SizeOfString(APP_RESET_TO_FACTORY_URI_PATH), (uint8_t *)APP_RESET_TO_FACTORY_URI_PATH};
 #endif
@@ -216,6 +217,10 @@ void APP_Init
     APP_InitEventMonitor(mThrInstanceId);
 #endif
 	MyTask_Init();
+	if(!Accel_Init())
+	{
+		shell_printf("Failed to initialize accelerometer\r\n");
+	}
     if(gThrStatus_Success_c == THR_StartInstance(mThrInstanceId, pStackCfg[0]))
     {
         /* Initialize CoAP demo */
@@ -506,7 +511,7 @@ static void APP_InitCoapDemo
                                      {APP_CoapTempCb, (coapUriPath_t *)&gAPP_TEMP_URI_PATH},
 
 									 {APP_CoapTimerCb, (coapUriPath_t*)&gAPP_TIMER_URI_PATH},
-									 {APP_CoapResource2Cb, (coapUriPath_t*)&gAPP_RESOURCE2_URI_PATH},
+									 {APP_CoapAccelCb, (coapUriPath_t*)&gAPP_ACCEL_URI_PATH},
 #if LARGE_NETWORK
                                      {APP_CoapResetToFactoryDefaultsCb, (coapUriPath_t *)&gAPP_RESET_URI_PATH},
 #endif
@@ -1512,11 +1517,11 @@ static void APP_AutoStartCb
 ***************************************************************************************************/
 static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
 {
-
 	static uint8_t pMySessionPayload[3] = {0x31,0x32,0x33};
 	static uint32_t pMyPayloadSize=3;
 	coapSession_t *pMySession = NULL;
 	uint8_t data_counter;
+	coapReqRespCodes_t sessionCode = pSession->code;
 	char addrStr[INET6_ADDRSTRLEN];
 	pMySession = COAP_OpenSession(mAppCoapInstId);
 	//COAP_AddOptionToList(pMySession,COAP_URI_PATH_OPTION,(uint8_t*)APP_TIMER_URI_PATH,SizeOfString(APP_TIMER_URI_PATH));
@@ -1544,7 +1549,7 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 	}
 	shell_writeN((char*)pData,dataLen);
 	shell_write("\r\n");
-	if(gCoapGET_c == pSession->code)
+	if(gCoapGET_c == sessionCode)
 	{
 		/* Return the counter */
 		pMySession -> pCallback = NULL;
@@ -1568,7 +1573,7 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 }
 /*!*************************************************************************************************
 \private
-\fn     static void APP_CoapResource1Cb(coapSessionStatus_t sessionStatus, uint8_t *pData,
+\fn     static void APP_CoapAccelCb(coapSessionStatus_t sessionStatus, uint8_t *pData,
                                                      coapSession_t *pSession, uint32_t dataLen)
 \brief  This function is the callback function for CoAP resource 2.
 
@@ -1577,14 +1582,60 @@ static void APP_CoapTimerCb(coapSessionStatus_t sessionStatus, uint8_t *pData, c
 \param  [in]    pSession        Pointer to CoAP session
 \param  [in]    dataLen         Length of CoAP payload
 ***************************************************************************************************/
-static void APP_CoapResource2Cb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
+static void APP_CoapAccelCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
 {
-	  if (gCoapNonConfirmable_c == pSession->msgType)
-	  {
-	      shell_write("'NON' packet received 'POST' with payload: ");
-	      shell_writeN((char*)pData, dataLen);
-	      shell_write("\r\n");
-	  }
+	static uint8_t pMySessionPayload[3] = {0x31,0x32,0x33};
+	static uint32_t pMyPayloadSize=3;
+	coapSession_t *pMySession = NULL;
+	accel_data pDataRead = {0};
+	coapReqRespCodes_t sessionCode = pSession->code;
+	char addrStr[INET6_ADDRSTRLEN];
+	pMySession = COAP_OpenSession(mAppCoapInstId);
+	/*Change the address to string */
+	ntop(AF_INET6, (ipAddr_t*)&pSession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
+	/* If it is a CON request */
+	if (gCoapConfirmable_c == pSession->msgType)
+	{
+		/* Print the requester address */
+		shell_printf("\tCON instruction received from: %s\n\r", addrStr);
+		/* Send the CoAP Ack */
+	    if (gCoapFailure_c!=sessionStatus)
+	    {
+	      COAP_Send(pSession, gCoapMsgTypeAckSuccessChanged_c, pMySessionPayload, pMyPayloadSize);
+	    }
+	}
+	/* If it is a NON request */
+	else if(gCoapNonConfirmable_c == pSession->msgType)
+	{
+		/* Print the requester address */
+		shell_printf("\tNON instruction received from: %s\n\r", addrStr);
+	}
+
+	if(gCoapGET_c == sessionCode)
+	{
+		if(!GetAccelData(&pDataRead))
+		{
+			shell_write("\r\n-----Failed to connect to accelerometer-----\r\n");
+		}
+		/* Return the counter */
+		pMySession -> pCallback = NULL;
+		//pMySession -> pUriPath = (coapUriPath_t *)&gAPP_TIMER_URI_PATH;
+		pMySession -> msgType = gCoapNonConfirmable_c;
+		pMySession -> code = gCoapPOST_c;
+		FLib_MemCpy(&pMySession->remoteAddrStorage.ss_addr,&gCoapDestAddress,sizeof(ipAddr_t));
+		ntop(AF_INET6, (ipAddr_t*)&pMySession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
+		COAP_Send(pMySession, gCoapMsgTypeUseSessionValues_c, &pDataRead, sizeof(pDataRead));
+		if(gCoapNonConfirmable_c == pMySession->msgType)
+		{
+			shell_printf("***'NON'");
+		}
+		else
+		{
+			shell_printf("***'CON'");
+		}
+		shell_printf(" packet sent 'POST' with x = %d, y = %d, z = %d to  %s\n\r",pDataRead.xData, pDataRead.yData,pDataRead.zData, addrStr);
+		shell_write("\r\n");
+	}
 }
 /*==================================================================================================
 Private debug functions
