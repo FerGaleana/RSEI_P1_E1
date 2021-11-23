@@ -18,6 +18,9 @@ Include Files
 #include "EmbeddedTypes.h"
 #include <string.h>
 
+/* Timer include */
+#include "Timer.h"
+
 /* FSL Framework */
 #include "shell.h"
 #include "Keyboard.h"
@@ -79,8 +82,7 @@ Private macros
 #define APP_LED_URI_PATH                        "/led"
 #define APP_TEMP_URI_PATH                       "/temp"
 #define APP_SINK_URI_PATH                       "/sink"
-
-#define APP_RESOURCE1_URI_PATH					"/resource1"
+#define APP_TIMER_URI_PATH						"/team1"
 #define APP_RESOURCE2_URI_PATH					"/resource2"
 #if LARGE_NETWORK
 #define APP_RESET_TO_FACTORY_URI_PATH           "/reset"
@@ -127,8 +129,11 @@ static void APP_CoapTempCb(coapSessionStatus_t sessionStatus, uint8_t *pData, co
 static void APP_CoapSinkCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
 static void App_RestoreLeaderLed(uint8_t *param);
 
-static void APP_CoapResource1Cb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
 static void APP_CoapResource2Cb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
+static void APP_SendCounterRequest(uint8_t *pParam);
+static void APP_CoapCounterRequestCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
+
+void APP_CounterConnection(void);
 
 #if LARGE_NETWORK
 static void APP_CoapResetToFactoryDefaultsCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen);
@@ -145,8 +150,8 @@ Public global variables declarations
 const coapUriPath_t gAPP_LED_URI_PATH  = {SizeOfString(APP_LED_URI_PATH), (uint8_t *)APP_LED_URI_PATH};
 const coapUriPath_t gAPP_TEMP_URI_PATH = {SizeOfString(APP_TEMP_URI_PATH), (uint8_t *)APP_TEMP_URI_PATH};
 const coapUriPath_t gAPP_SINK_URI_PATH = {SizeOfString(APP_SINK_URI_PATH), (uint8_t *)APP_SINK_URI_PATH};
+const coapUriPath_t gAPP_TIMER_URI_PATH = {SizeOfString(APP_TIMER_URI_PATH), (uint8_t *)APP_TIMER_URI_PATH};
 
-const coapUriPath_t gAPP_RESOURCE1_URI_PATH = {SizeOfString(APP_RESOURCE1_URI_PATH), (uint8_t *)APP_RESOURCE1_URI_PATH};
 const coapUriPath_t gAPP_RESOURCE2_URI_PATH = {SizeOfString(APP_RESOURCE2_URI_PATH), (uint8_t *)APP_RESOURCE2_URI_PATH};
 #if LARGE_NETWORK
 const coapUriPath_t gAPP_RESET_URI_PATH = {SizeOfString(APP_RESET_TO_FACTORY_URI_PATH), (uint8_t *)APP_RESET_TO_FACTORY_URI_PATH};
@@ -212,6 +217,8 @@ void APP_Init
     /* Initialize event monitoring */
     APP_InitEventMonitor(mThrInstanceId);
 #endif
+    /* Initialize Timer task */
+	MyTask_Init(APP_CounterConnection);
 
     if(gThrStatus_Success_c == THR_StartInstance(mThrInstanceId, pStackCfg[0]))
     {
@@ -324,6 +331,8 @@ void Stack_to_APP_Handler
             break;
 
         case gThrEv_NwkJoinCnf_Success_c:
+        	/* Initialize timer */
+        	MyTaskTimer_Start(5000);
         case gThrEv_NwkJoinCnf_Failed_c:
             APP_JoinEventsHandler(pEventParams->code);
             break;
@@ -499,8 +508,7 @@ static void APP_InitCoapDemo
 {
     coapRegCbParams_t cbParams[] =  {{APP_CoapLedCb,  (coapUriPath_t *)&gAPP_LED_URI_PATH},
                                      {APP_CoapTempCb, (coapUriPath_t *)&gAPP_TEMP_URI_PATH},
-
-									 {APP_CoapResource1Cb, (coapUriPath_t*)&gAPP_RESOURCE1_URI_PATH},
+									 {APP_CoapCounterRequestCb, (coapUriPath_t *)&gAPP_TIMER_URI_PATH},
 									 {APP_CoapResource2Cb, (coapUriPath_t*)&gAPP_RESOURCE2_URI_PATH},
 #if LARGE_NETWORK
                                      {APP_CoapResetToFactoryDefaultsCb, (coapUriPath_t *)&gAPP_RESET_URI_PATH},
@@ -1492,70 +1500,73 @@ static void APP_AutoStartCb
     NWKU_SendMsg(APP_AutoStart, NULL, mpAppThreadMsgQueue);
 }
 #endif
+
 /*!*************************************************************************************************
 \private
-\fn     static void APP_CoapResource1Cb(coapSessionStatus_t sessionStatus, uint8_t *pData,
-                                                     coapSession_t *pSession, uint32_t dataLen)
-\brief  This function is the callback function for CoAP resource 1.
+\fn     static void APP_SendCounterRequest(uint8_t *pParam)
+\brief  This function is used to request the counter value.
 
-\param  [in]    sessionStatus   Status for CoAP session
-\param  [in]    pData           Pointer to CoAP message payload
-\param  [in]    pSession        Pointer to CoAP session
-\param  [in]    dataLen         Length of CoAP payload
+\param  [in]    pParam    Pointer to stack event
 ***************************************************************************************************/
-static void APP_CoapResource1Cb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
+static void APP_SendCounterRequest(uint8_t *pParam)
 {
-	static uint8_t pMySessionPayload[4]={0x48, 0x6F, 0x6C, 0x61}; // Dirá 'Hola' la respuesta del router.
-	  static uint32_t pMyPayloadSize = 3;
-	  coapSession_t *pMySession = NULL;
-	  pMySession = COAP_OpenSession(mAppCoapInstId);
-	  COAP_AddOptionToList(pMySession,COAP_URI_PATH_OPTION, APP_RESOURCE2_URI_PATH,SizeOfString(APP_RESOURCE2_URI_PATH));
+	char addrStr[INET6_ADDRSTRLEN];
+	uint8_t data = 50;
+    coapMessageTypes_t requestType = gCoapConfirmable_c;
+    coapReqRespCodes_t requestCode = gCoapGET_c;
 
-	    if (gCoapConfirmable_c == pSession->msgType)
-	  {
-	    if (gCoapGET_c == pSession->code)
-	    {
-	      shell_write("'CON' packet received 'GET' with payload: ");
-	    }
-	    if (gCoapPOST_c == pSession->code)
-	    {
-	      shell_write("'CON' packet received 'POST' with payload: ");
-	    }
-	    if (gCoapPUT_c == pSession->code)
-	    {
-	      shell_write("'CON' packet received 'PUT' with payload: ");
-	    }
+    if(!IP_IF_IsMyAddr(gIpIfSlp0_c, &gCoapDestAddress))
+    {
+    	/* Start CoAP session */
+        coapSession_t *pReqSession = COAP_OpenSession(mAppCoapInstId);
+
+        if(pReqSession)
+        {
+
+            pReqSession->msgType = requestType;
+            pReqSession->code = requestCode;
+            pReqSession->pCallback = NULL;
+            FLib_MemCpy(&pReqSession->remoteAddrStorage.ss_addr, &gCoapDestAddress, sizeof(ipAddr_t));
+            pReqSession->pUriPath = (coapUriPath_t *)&gAPP_TIMER_URI_PATH;
+            if(!IP6_IsMulticastAddr(&gCoapDestAddress))
+            {
+                COAP_SetCallback(pReqSession, APP_CoapGenericCallback);
+            }
+
+            else
+            {
+            	COAP_SetCallback(pReqSession, APP_CoapCounterRequestCb);
+            }
+
+            COAP_Send(pReqSession, gCoapMsgTypeUseSessionValues_c, &data, 1);
+        }
+    }
+}
+void APP_CounterConnection(void)
+{
+	(void)NWKU_SendMsg(APP_SendCounterRequest, NULL, mpAppThreadMsgQueue);
+}
+
+static void APP_CoapCounterRequestCb(coapSessionStatus_t sessionStatus, uint8_t *pData, coapSession_t *pSession, uint32_t dataLen)
+{
+	static uint8_t pMySessionPayload[3] = {0x31,0x32,0x33};
+	static uint32_t pMyPayloadSize=3;
+	char addrStr[INET6_ADDRSTRLEN];
+	/* Send CoAP Ack if the message is CON */
+	if (gCoapConfirmable_c == pSession->msgType)
+	{
+		/* Send the CoAP Ack */
 	    if (gCoapFailure_c!=sessionStatus)
 	    {
 	      COAP_Send(pSession, gCoapMsgTypeAckSuccessChanged_c, pMySessionPayload, pMyPayloadSize);
 	    }
-	  }
+	}
+	if(gCoapPOST_c == pSession->code)
+	{
+	    ntop(AF_INET6, (ipAddr_t*)&pSession->remoteAddrStorage.ss_addr, addrStr, INET6_ADDRSTRLEN);
+	    shell_printf("\tCounter = %u from: %s\n\r", *pData, addrStr);
+	}
 
-	  else if(gCoapNonConfirmable_c == pSession->msgType)
-	  {
-	    if (gCoapGET_c == pSession->code)
-	    {
-	      shell_write("'NON' packet received 'GET' with payload: ");
-	    }
-	    if (gCoapPOST_c == pSession->code)
-	    {
-	      shell_write("'NON' packet received 'POST' with payload: ");
-	    }
-	    if (gCoapPUT_c == pSession->code)
-	    {
-	      shell_write("'NON' packet received 'PUT' with payload: ");
-	    }
-	  }
-	  shell_writeN((char*)pData, dataLen);
-	  shell_write("\r\n");
-	  pMySession -> msgType=gCoapNonConfirmable_c;
-	  pMySession -> code= gCoapPOST_c;
-	  pMySession -> pCallback =NULL;
-	  FLib_MemCpy(&pMySession->remoteAddrStorage,&gCoapDestAddress,sizeof(ipAddr_t));
-	  COAP_Send(pMySession, gCoapMsgTypeNonPost_c, pMySessionPayload, pMyPayloadSize);
-	  shell_write("'NON' packet sent 'POST' with payload: ");
-	  shell_writeN((char*) pMySessionPayload, pMyPayloadSize);
-	  shell_write("\r\n");
 }
 /*!*************************************************************************************************
 \private
