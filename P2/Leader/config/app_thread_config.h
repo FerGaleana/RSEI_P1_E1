@@ -9,6 +9,7 @@
 **  @addtogroup TAC
 **  @{
 */
+
 #ifndef _APP_THREAD_CONFIG_H
 #define _APP_THREAD_CONFIG_H
 
